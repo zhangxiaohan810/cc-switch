@@ -14,6 +14,7 @@ concurrency:
 
 jobs:
   release:
+    if: ${{ !contains(github.ref_name, '-deepseek.') }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -515,6 +516,7 @@ jobs:
           fi
 
   publish-release:
+    if: ${{ !contains(github.ref_name, '-deepseek.') }}
     name: Publish GitHub Release
     runs-on: ubuntu-22.04
     needs: release
@@ -563,6 +565,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   assemble-latest-json:
+    if: ${{ !contains(github.ref_name, '-deepseek.') }}
     name: Assemble latest.json
     runs-on: ubuntu-22.04
     needs: publish-release
