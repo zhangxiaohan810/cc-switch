@@ -332,7 +332,7 @@ fn convert_message_to_openai(
     if let Some(blocks) = content.as_array() {
         let mut content_parts = Vec::new();
         let mut tool_calls = Vec::new();
-        // reasoning_parts: 仅在兼容 Moonshot/Kimi/DeepSeek thinking tool-call 路径时
+        // reasoning_parts: 仅在兼容 Moonshot/Kimi/DeepSeek thinking 路径时
         // 生成 reasoning_content，通用 OpenAI-compatible 路径不发送该非标准字段。
         let mut reasoning_parts = Vec::new();
 
@@ -405,8 +405,12 @@ fn convert_message_to_openai(
             }
         }
 
-        // 添加带内容和/或工具调用的消息
-        if !content_parts.is_empty() || !tool_calls.is_empty() {
+        let should_emit_message = !content_parts.is_empty()
+            || !tool_calls.is_empty()
+            || (preserve_reasoning_content && role == "assistant" && !reasoning_parts.is_empty());
+
+        // 添加带内容、工具调用或仅思考内容的消息
+        if should_emit_message {
             let mut msg = json!({"role": role});
 
             // 内容处理
@@ -433,13 +437,12 @@ fn convert_message_to_openai(
                 msg["tool_calls"] = json!(tool_calls);
             }
 
-            if preserve_reasoning_content && role == "assistant" && !tool_calls.is_empty() {
-                let reasoning_content = if reasoning_parts.is_empty() {
-                    "tool call".to_string()
-                } else {
-                    reasoning_parts.join("\n")
-                };
-                msg["reasoning_content"] = json!(reasoning_content);
+            if preserve_reasoning_content && role == "assistant" {
+                if !reasoning_parts.is_empty() {
+                    msg["reasoning_content"] = json!(reasoning_parts.join("\n"));
+                } else if !tool_calls.is_empty() {
+                    msg["reasoning_content"] = json!("tool call");
+                }
             }
 
             result.push(msg);
@@ -949,6 +952,26 @@ mod tests {
 
         let result = anthropic_to_openai(input).unwrap();
         assert_eq!(result["messages"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_anthropic_to_openai_preserves_thinking_only_message_for_deepseek() {
+        let input = json!({
+            "model": "deepseek-v4-flash",
+            "max_tokens": 1024,
+            "messages": [{
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "No visible content yet."}
+                ]
+            }]
+        });
+
+        let result = anthropic_to_openai_with_reasoning_content(input, true).unwrap();
+        let msg = &result["messages"][0];
+        assert_eq!(msg["role"], "assistant");
+        assert!(msg["content"].is_null());
+        assert_eq!(msg["reasoning_content"], "No visible content yet.");
     }
 
     #[test]
