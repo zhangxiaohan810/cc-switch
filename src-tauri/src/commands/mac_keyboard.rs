@@ -62,6 +62,83 @@ fn run_script(name: &str) -> Result<String, String> {
 }
 
 #[cfg(target_os = "macos")]
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+#[cfg(target_os = "macos")]
+fn escape_applescript_string(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+#[cfg(target_os = "macos")]
+fn terminal_nc_command(command: &str) -> String {
+    format!(
+        "printf %s {} | nc 127.0.0.1 {}",
+        shell_quote(command),
+        G610_PORT
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn open_terminal_for_g610_start(after_start: Option<&str>) -> Result<(), String> {
+    let start_script = home_bin("codex-g610-server-start");
+    if !start_script.is_file() {
+        return Err(format!("Missing script: {}", start_script.display()));
+    }
+
+    let mut command = shell_quote(&start_script.to_string_lossy());
+    if let Some(after_start) = after_start {
+        command.push_str(" && ");
+        command.push_str(after_start);
+    }
+    command.push_str(
+        "; echo; echo 'G610 server command finished. You can close this Terminal window.'",
+    );
+
+    let script = format!(
+        r#"tell application "Terminal"
+    activate
+    do script "{}"
+end tell"#,
+        escape_applescript_string(&command)
+    );
+
+    let output = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(script)
+        .output()
+        .map_err(|e| format!("Failed to open Terminal for sudo password: {e}"))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(if stderr.is_empty() {
+            format!("osascript exited with {}", output.status)
+        } else {
+            stderr
+        })
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn ensure_g610_server_started(after_start: Option<&str>) -> Result<bool, String> {
+    match run_script("codex-g610-server-start") {
+        Ok(_) => Ok(true),
+        Err(start_error) => {
+            open_terminal_for_g610_start(after_start).map_err(|terminal_error| {
+                format!(
+                    "{start_error}; also failed to open Terminal for sudo password: \
+                     {terminal_error}"
+                )
+            })?;
+            Ok(false)
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
 fn send_g610_command(command: &str) -> Result<String, String> {
     use std::io::{Read, Write};
     use std::net::{SocketAddr, TcpStream};
@@ -247,7 +324,7 @@ pub async fn set_mac_g610_listening(enabled: bool) -> Result<MacKeyboardServices
     #[cfg(target_os = "macos")]
     {
         if enabled {
-            run_script("codex-g610-server-start")?;
+            ensure_g610_server_started(None)?;
         } else {
             run_script("codex-g610-server-stop")?;
         }
@@ -267,7 +344,11 @@ pub async fn set_mac_g610_blinking(enabled: bool) -> Result<MacKeyboardServicesS
     {
         let (listening, _, _) = get_g610_network_state();
         if !listening {
-            run_script("codex-g610-server-start")?;
+            let command = if enabled { "start" } else { "stop" };
+            let after_start = terminal_nc_command(command);
+            if !ensure_g610_server_started(Some(&after_start))? {
+                return Ok(status_impl());
+            }
         }
         send_g610_command(if enabled { "start" } else { "stop" })?;
         return Ok(status_impl());
@@ -286,14 +367,14 @@ pub async fn set_mac_g610_default_brightness(
 ) -> Result<MacKeyboardServicesStatus, String> {
     #[cfg(target_os = "macos")]
     {
+        let command = format!("set default-brightness {}", clamp_brightness(brightness));
         let (listening, _, _) = get_g610_network_state();
         if !listening {
-            run_script("codex-g610-server-start")?;
+            if !ensure_g610_server_started(Some(&terminal_nc_command(&command)))? {
+                return Ok(status_impl());
+            }
         }
-        send_g610_command(&format!(
-            "set default-brightness {}",
-            clamp_brightness(brightness)
-        ))?;
+        send_g610_command(&command)?;
         return Ok(status_impl());
     }
 
@@ -310,14 +391,14 @@ pub async fn set_mac_g610_blink_brightness(
 ) -> Result<MacKeyboardServicesStatus, String> {
     #[cfg(target_os = "macos")]
     {
+        let command = format!("set blink-brightness {}", clamp_brightness(brightness));
         let (listening, _, _) = get_g610_network_state();
         if !listening {
-            run_script("codex-g610-server-start")?;
+            if !ensure_g610_server_started(Some(&terminal_nc_command(&command)))? {
+                return Ok(status_impl());
+            }
         }
-        send_g610_command(&format!(
-            "set blink-brightness {}",
-            clamp_brightness(brightness)
-        ))?;
+        send_g610_command(&command)?;
         return Ok(status_impl());
     }
 
@@ -334,14 +415,14 @@ pub async fn set_mac_g610_frequency(
 ) -> Result<MacKeyboardServicesStatus, String> {
     #[cfg(target_os = "macos")]
     {
+        let command = format!("set frequency {:.1}", clamp_frequency(frequency_hz));
         let (listening, _, _) = get_g610_network_state();
         if !listening {
-            run_script("codex-g610-server-start")?;
+            if !ensure_g610_server_started(Some(&terminal_nc_command(&command)))? {
+                return Ok(status_impl());
+            }
         }
-        send_g610_command(&format!(
-            "set frequency {:.1}",
-            clamp_frequency(frequency_hz)
-        ))?;
+        send_g610_command(&command)?;
         return Ok(status_impl());
     }
 
@@ -356,14 +437,14 @@ pub async fn set_mac_g610_frequency(
 pub async fn set_mac_g610_burst_seconds(seconds: f64) -> Result<MacKeyboardServicesStatus, String> {
     #[cfg(target_os = "macos")]
     {
+        let command = format!("set burst-seconds {:.1}", clamp_burst_seconds(seconds));
         let (listening, _, _) = get_g610_network_state();
         if !listening {
-            run_script("codex-g610-server-start")?;
+            if !ensure_g610_server_started(Some(&terminal_nc_command(&command)))? {
+                return Ok(status_impl());
+            }
         }
-        send_g610_command(&format!(
-            "set burst-seconds {:.1}",
-            clamp_burst_seconds(seconds)
-        ))?;
+        send_g610_command(&command)?;
         return Ok(status_impl());
     }
 
@@ -378,14 +459,14 @@ pub async fn set_mac_g610_burst_seconds(seconds: f64) -> Result<MacKeyboardServi
 pub async fn set_mac_g610_pause_seconds(seconds: f64) -> Result<MacKeyboardServicesStatus, String> {
     #[cfg(target_os = "macos")]
     {
+        let command = format!("set pause-seconds {:.1}", clamp_pause_seconds(seconds));
         let (listening, _, _) = get_g610_network_state();
         if !listening {
-            run_script("codex-g610-server-start")?;
+            if !ensure_g610_server_started(Some(&terminal_nc_command(&command)))? {
+                return Ok(status_impl());
+            }
         }
-        send_g610_command(&format!(
-            "set pause-seconds {:.1}",
-            clamp_pause_seconds(seconds)
-        ))?;
+        send_g610_command(&command)?;
         return Ok(status_impl());
     }
 
