@@ -21,6 +21,9 @@ pub struct MacKeyboardServicesStatus {
     pub input_mapping: MacKeyboardServiceState,
     pub default_brightness: u8,
     pub blink_brightness: u8,
+    pub frequency_hz: f64,
+    pub burst_seconds: f64,
+    pub pause_seconds: f64,
 }
 
 #[cfg(target_os = "macos")]
@@ -99,6 +102,21 @@ fn clamp_brightness(value: u8) -> u8 {
 }
 
 #[cfg(target_os = "macos")]
+fn clamp_frequency(value: f64) -> f64 {
+    value.clamp(0.5, 10.0)
+}
+
+#[cfg(target_os = "macos")]
+fn clamp_burst_seconds(value: f64) -> f64 {
+    value.clamp(1.0, 60.0)
+}
+
+#[cfg(target_os = "macos")]
+fn clamp_pause_seconds(value: f64) -> f64 {
+    value.clamp(0.0, 120.0)
+}
+
+#[cfg(target_os = "macos")]
 fn parse_brightness(detail: Option<&str>, key: &str, fallback: u8) -> u8 {
     let Some(detail) = detail else {
         return fallback;
@@ -109,6 +127,20 @@ fn parse_brightness(detail: Option<&str>, key: &str, fallback: u8) -> u8 {
         .find_map(|part| part.strip_prefix(&prefix))
         .and_then(|value| value.parse::<u8>().ok())
         .map(clamp_brightness)
+        .unwrap_or(fallback)
+}
+
+#[cfg(target_os = "macos")]
+fn parse_number(detail: Option<&str>, key: &str, fallback: f64, clamp: fn(f64) -> f64) -> f64 {
+    let Some(detail) = detail else {
+        return fallback;
+    };
+    let prefix = format!("{key}=");
+    detail
+        .split_whitespace()
+        .find_map(|part| part.strip_prefix(&prefix))
+        .and_then(|value| value.parse::<f64>().ok())
+        .map(clamp)
         .unwrap_or(fallback)
 }
 
@@ -153,6 +185,9 @@ fn status_impl() -> MacKeyboardServicesStatus {
     let (listening, blinking, g610_detail) = get_g610_network_state();
     let default_brightness = parse_brightness(g610_detail.as_deref(), "default", 0);
     let blink_brightness = parse_brightness(g610_detail.as_deref(), "blink", 100);
+    let frequency_hz = parse_number(g610_detail.as_deref(), "frequency", 3.0, clamp_frequency);
+    let burst_seconds = parse_number(g610_detail.as_deref(), "burst", 5.0, clamp_burst_seconds);
+    let pause_seconds = parse_number(g610_detail.as_deref(), "pause", 15.0, clamp_pause_seconds);
 
     MacKeyboardServicesStatus {
         supported: true,
@@ -171,6 +206,9 @@ fn status_impl() -> MacKeyboardServicesStatus {
         input_mapping: input_mapping_state(),
         default_brightness,
         blink_brightness,
+        frequency_hz,
+        burst_seconds,
+        pause_seconds,
     }
 }
 
@@ -193,6 +231,9 @@ fn status_impl() -> MacKeyboardServicesStatus {
         input_mapping: unsupported_state(),
         default_brightness: 0,
         blink_brightness: 100,
+        frequency_hz: 3.0,
+        burst_seconds: 5.0,
+        pause_seconds: 15.0,
     }
 }
 
@@ -283,6 +324,75 @@ pub async fn set_mac_g610_blink_brightness(
     #[cfg(not(target_os = "macos"))]
     {
         let _ = brightness;
+        Err("Mac keyboard controls are only available on macOS".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn set_mac_g610_frequency(
+    frequency_hz: f64,
+) -> Result<MacKeyboardServicesStatus, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let (listening, _, _) = get_g610_network_state();
+        if !listening {
+            run_script("codex-g610-server-start")?;
+        }
+        send_g610_command(&format!("set frequency {:.1}", clamp_frequency(frequency_hz)))?;
+        return Ok(status_impl());
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = frequency_hz;
+        Err("Mac keyboard controls are only available on macOS".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn set_mac_g610_burst_seconds(
+    seconds: f64,
+) -> Result<MacKeyboardServicesStatus, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let (listening, _, _) = get_g610_network_state();
+        if !listening {
+            run_script("codex-g610-server-start")?;
+        }
+        send_g610_command(&format!(
+            "set burst-seconds {:.1}",
+            clamp_burst_seconds(seconds)
+        ))?;
+        return Ok(status_impl());
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = seconds;
+        Err("Mac keyboard controls are only available on macOS".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn set_mac_g610_pause_seconds(
+    seconds: f64,
+) -> Result<MacKeyboardServicesStatus, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let (listening, _, _) = get_g610_network_state();
+        if !listening {
+            run_script("codex-g610-server-start")?;
+        }
+        send_g610_command(&format!(
+            "set pause-seconds {:.1}",
+            clamp_pause_seconds(seconds)
+        ))?;
+        return Ok(status_impl());
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = seconds;
         Err("Mac keyboard controls are only available on macOS".to_string())
     }
 }

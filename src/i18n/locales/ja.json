@@ -404,6 +404,12 @@
         "defaultBrightnessDescription": "点滅していない状態のバックライト輝度。0 は消灯を意味します",
         "blinkBrightness": "点滅輝度",
         "blinkBrightnessDescription": "点滅時に点灯するフェーズのバックライト輝度",
+        "frequency": "点滅頻度",
+        "frequencyDescription": "点滅のオン/オフ速度。デフォルトは 3 Hz",
+        "burstSeconds": "1 回の点滅継続時間",
+        "burstSecondsDescription": "ユーザー確認前に各点滅バーストが続く時間。デフォルトは 5 秒",
+        "pauseSeconds": "次の点滅までの待機時間",
+        "pauseSecondsDescription": "各点滅バースト後、次に点滅するまでの待機時間。デフォルトは 15 秒",
         "inputMapping": "入力マッピング",
         "inputMappingDescription": "Ctrl を Command に変換する個別のキーボードマッピングプロセスを制御します"
       }

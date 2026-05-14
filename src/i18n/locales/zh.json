@@ -404,6 +404,12 @@
         "defaultBrightnessDescription": "非闪烁状态下的键盘背光亮度，0 表示熄灭",
         "blinkBrightness": "闪烁亮度",
         "blinkBrightnessDescription": "闪烁亮起阶段的背光亮度",
+        "frequency": "闪烁频率",
+        "frequencyDescription": "闪烁亮灭切换速度，默认 3 Hz",
+        "burstSeconds": "单次持续闪烁时间",
+        "burstSecondsDescription": "用户确认前，每一轮连续闪烁的时长，默认 5 秒",
+        "pauseSeconds": "下次闪烁前等待时间",
+        "pauseSecondsDescription": "每轮闪烁结束后，等待多久再开始下一轮，默认 15 秒",
         "inputMapping": "输入映射",
         "inputMappingDescription": "单独控制 Ctrl 到 Command 的键盘映射进程"
       }

@@ -249,6 +249,9 @@ export interface MacKeyboardServicesStatus {
   inputMapping: MacKeyboardServiceState;
   defaultBrightness: number;
   blinkBrightness: number;
+  frequencyHz: number;
+  burstSeconds: number;
+  pauseSeconds: number;
 }
 
 export const macKeyboardApi = {
@@ -274,6 +277,18 @@ export const macKeyboardApi = {
     brightness: number,
   ): Promise<MacKeyboardServicesStatus> {
     return await invoke("set_mac_g610_blink_brightness", { brightness });
+  },
+
+  async setFrequency(frequencyHz: number): Promise<MacKeyboardServicesStatus> {
+    return await invoke("set_mac_g610_frequency", { frequencyHz });
+  },
+
+  async setBurstSeconds(seconds: number): Promise<MacKeyboardServicesStatus> {
+    return await invoke("set_mac_g610_burst_seconds", { seconds });
+  },
+
+  async setPauseSeconds(seconds: number): Promise<MacKeyboardServicesStatus> {
+    return await invoke("set_mac_g610_pause_seconds", { seconds });
   },
 
   async setInputMapping(enabled: boolean): Promise<MacKeyboardServicesStatus> {

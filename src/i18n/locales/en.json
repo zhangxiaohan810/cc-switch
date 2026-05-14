@@ -404,6 +404,12 @@
         "defaultBrightnessDescription": "Backlight brightness while not blinking; 0 means off",
         "blinkBrightness": "Blink Brightness",
         "blinkBrightnessDescription": "Backlight brightness for the lit phase of blinking",
+        "frequency": "Blink Frequency",
+        "frequencyDescription": "Blink on/off speed, default 3 Hz",
+        "burstSeconds": "Blink Duration",
+        "burstSecondsDescription": "How long each blinking burst lasts before user confirmation, default 5 seconds",
+        "pauseSeconds": "Wait Before Next Blink",
+        "pauseSecondsDescription": "How long to wait after each burst before blinking again, default 15 seconds",
         "inputMapping": "Input Mapping",
         "inputMappingDescription": "Control the separate Ctrl-to-Command keyboard mapping process"
       }

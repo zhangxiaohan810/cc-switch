@@ -16,18 +16,26 @@ import { Button } from "@/components/ui/button";
 import { ToggleRow } from "@/components/ui/toggle-row";
 
 type Target = "g610Listening" | "g610Blinking" | "inputMapping";
-type BrightnessTarget = "defaultBrightness" | "blinkBrightness";
+type SliderTarget =
+  | "defaultBrightness"
+  | "blinkBrightness"
+  | "frequencyHz"
+  | "burstSeconds"
+  | "pauseSeconds";
 
 export function MacKeyboardControlPanel() {
   const { t } = useTranslation();
   const [status, setStatus] = useState<MacKeyboardServicesStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [busyTarget, setBusyTarget] = useState<
-    Target | BrightnessTarget | null
-  >(null);
-  const [brightness, setBrightness] = useState({
+  const [busyTarget, setBusyTarget] = useState<Target | SliderTarget | null>(
+    null,
+  );
+  const [sliderValues, setSliderValues] = useState({
     defaultBrightness: 0,
     blinkBrightness: 100,
+    frequencyHz: 3,
+    burstSeconds: 5,
+    pauseSeconds: 15,
   });
 
   const loadStatus = useCallback(async () => {
@@ -48,9 +56,12 @@ export function MacKeyboardControlPanel() {
 
   useEffect(() => {
     if (!status) return;
-    setBrightness({
+    setSliderValues({
       defaultBrightness: status.defaultBrightness ?? 0,
       blinkBrightness: status.blinkBrightness ?? 100,
+      frequencyHz: status.frequencyHz ?? 3,
+      burstSeconds: status.burstSeconds ?? 5,
+      pauseSeconds: status.pauseSeconds ?? 15,
     });
   }, [status]);
 
@@ -79,21 +90,30 @@ export function MacKeyboardControlPanel() {
     [loadStatus],
   );
 
-  const setBrightnessValue = useCallback(
-    async (target: BrightnessTarget, value: number) => {
-      const normalized = Math.max(0, Math.min(100, Math.round(value)));
+  const setSliderValue = useCallback(
+    async (target: SliderTarget, value: number) => {
+      const normalized =
+        target === "defaultBrightness" || target === "blinkBrightness"
+          ? Math.max(0, Math.min(100, Math.round(value)))
+          : target === "frequencyHz"
+            ? Math.max(0.5, Math.min(10, Math.round(value * 10) / 10))
+            : target === "burstSeconds"
+              ? Math.max(1, Math.min(60, Math.round(value)))
+              : Math.max(0, Math.min(120, Math.round(value)));
       setBusyTarget(target);
       try {
-        const next =
-          target === "defaultBrightness"
-            ? await macKeyboardApi.setDefaultBrightness(normalized)
-            : await macKeyboardApi.setBlinkBrightness(normalized);
+        const next = await (target === "defaultBrightness"
+          ? macKeyboardApi.setDefaultBrightness(normalized)
+          : target === "blinkBrightness"
+            ? macKeyboardApi.setBlinkBrightness(normalized)
+            : target === "frequencyHz"
+              ? macKeyboardApi.setFrequency(normalized)
+              : target === "burstSeconds"
+                ? macKeyboardApi.setBurstSeconds(normalized)
+                : macKeyboardApi.setPauseSeconds(normalized));
         setStatus(next);
       } catch (error) {
-        console.error(
-          "[MacKeyboardControlPanel] Failed to set brightness",
-          error,
-        );
+        console.error("[MacKeyboardControlPanel] Failed to set value", error);
         toast.error(String(error));
         await loadStatus();
       } finally {
@@ -201,12 +221,16 @@ export function MacKeyboardControlPanel() {
         onCheckedChange={(checked) => void setService("g610Blinking", checked)}
       />
 
-      <BrightnessSlider
+      <RangeSlider
         label={t("settings.advanced.macKeyboard.defaultBrightness")}
         description={t(
           "settings.advanced.macKeyboard.defaultBrightnessDescription",
         )}
-        value={brightness.defaultBrightness}
+        value={sliderValues.defaultBrightness}
+        min={0}
+        max={100}
+        step={1}
+        suffix="%"
         disabled={
           busyTarget !== null ||
           isLoading ||
@@ -214,22 +238,24 @@ export function MacKeyboardControlPanel() {
           !status.g610Listening.installed
         }
         onChange={(value) =>
-          setBrightness((current) => ({
+          setSliderValues((current) => ({
             ...current,
             defaultBrightness: value,
           }))
         }
-        onCommit={(value) =>
-          void setBrightnessValue("defaultBrightness", value)
-        }
+        onCommit={(value) => void setSliderValue("defaultBrightness", value)}
       />
 
-      <BrightnessSlider
+      <RangeSlider
         label={t("settings.advanced.macKeyboard.blinkBrightness")}
         description={t(
           "settings.advanced.macKeyboard.blinkBrightnessDescription",
         )}
-        value={brightness.blinkBrightness}
+        value={sliderValues.blinkBrightness}
+        min={0}
+        max={100}
+        step={1}
+        suffix="%"
         disabled={
           busyTarget !== null ||
           isLoading ||
@@ -237,12 +263,81 @@ export function MacKeyboardControlPanel() {
           !status.g610Listening.installed
         }
         onChange={(value) =>
-          setBrightness((current) => ({
+          setSliderValues((current) => ({
             ...current,
             blinkBrightness: value,
           }))
         }
-        onCommit={(value) => void setBrightnessValue("blinkBrightness", value)}
+        onCommit={(value) => void setSliderValue("blinkBrightness", value)}
+      />
+
+      <RangeSlider
+        label={t("settings.advanced.macKeyboard.frequency")}
+        description={t("settings.advanced.macKeyboard.frequencyDescription")}
+        value={sliderValues.frequencyHz}
+        min={0.5}
+        max={10}
+        step={0.5}
+        suffix=" Hz"
+        disabled={
+          busyTarget !== null ||
+          isLoading ||
+          !status.supported ||
+          !status.g610Listening.installed
+        }
+        onChange={(value) =>
+          setSliderValues((current) => ({
+            ...current,
+            frequencyHz: value,
+          }))
+        }
+        onCommit={(value) => void setSliderValue("frequencyHz", value)}
+      />
+
+      <RangeSlider
+        label={t("settings.advanced.macKeyboard.burstSeconds")}
+        description={t("settings.advanced.macKeyboard.burstSecondsDescription")}
+        value={sliderValues.burstSeconds}
+        min={1}
+        max={60}
+        step={1}
+        suffix="s"
+        disabled={
+          busyTarget !== null ||
+          isLoading ||
+          !status.supported ||
+          !status.g610Listening.installed
+        }
+        onChange={(value) =>
+          setSliderValues((current) => ({
+            ...current,
+            burstSeconds: value,
+          }))
+        }
+        onCommit={(value) => void setSliderValue("burstSeconds", value)}
+      />
+
+      <RangeSlider
+        label={t("settings.advanced.macKeyboard.pauseSeconds")}
+        description={t("settings.advanced.macKeyboard.pauseSecondsDescription")}
+        value={sliderValues.pauseSeconds}
+        min={0}
+        max={120}
+        step={1}
+        suffix="s"
+        disabled={
+          busyTarget !== null ||
+          isLoading ||
+          !status.supported ||
+          !status.g610Listening.installed
+        }
+        onChange={(value) =>
+          setSliderValues((current) => ({
+            ...current,
+            pauseSeconds: value,
+          }))
+        }
+        onCommit={(value) => void setSliderValue("pauseSeconds", value)}
       />
 
       <ToggleRow
@@ -262,23 +357,33 @@ export function MacKeyboardControlPanel() {
   );
 }
 
-interface BrightnessSliderProps {
+interface RangeSliderProps {
   label: string;
   description: string;
   value: number;
+  min: number;
+  max: number;
+  step: number;
+  suffix: string;
   disabled: boolean;
   onChange: (value: number) => void;
   onCommit: (value: number) => void;
 }
 
-function BrightnessSlider({
+function RangeSlider({
   label,
   description,
   value,
+  min,
+  max,
+  step,
+  suffix,
   disabled,
   onChange,
   onCommit,
-}: BrightnessSliderProps) {
+}: RangeSliderProps) {
+  const displayValue = step < 1 ? value.toFixed(1) : String(Math.round(value));
+
   return (
     <div className="rounded-xl border border-border bg-card/50 p-4 transition-colors hover:bg-muted/50">
       <div className="flex items-center justify-between gap-4">
@@ -286,15 +391,16 @@ function BrightnessSlider({
           <p className="text-sm font-medium leading-none">{label}</p>
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
-        <span className="w-12 text-right text-sm tabular-nums text-muted-foreground">
-          {value}%
+        <span className="w-16 text-right text-sm tabular-nums text-muted-foreground">
+          {displayValue}
+          {suffix}
         </span>
       </div>
       <input
         type="range"
-        min={0}
-        max={100}
-        step={1}
+        min={min}
+        max={max}
+        step={step}
         value={value}
         disabled={disabled}
         aria-label={label}

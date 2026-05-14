@@ -1200,6 +1200,9 @@ pub fn run() {
             commands::set_mac_g610_blinking,
             commands::set_mac_g610_default_brightness,
             commands::set_mac_g610_blink_brightness,
+            commands::set_mac_g610_frequency,
+            commands::set_mac_g610_burst_seconds,
+            commands::set_mac_g610_pause_seconds,
             commands::set_mac_input_mapping,
             // Proxy server management
             commands::start_proxy_server,
