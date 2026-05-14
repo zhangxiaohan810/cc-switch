@@ -81,6 +81,34 @@ fn terminal_nc_command(command: &str) -> String {
 }
 
 #[cfg(target_os = "macos")]
+fn open_terminal_command(command: &str, purpose: &str) -> Result<(), String> {
+    let script = format!(
+        r#"tell application "Terminal"
+    activate
+    do script "{}"
+end tell"#,
+        escape_applescript_string(&command)
+    );
+
+    let output = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(script)
+        .output()
+        .map_err(|e| format!("Failed to open Terminal for {purpose}: {e}"))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(if stderr.is_empty() {
+            format!("osascript exited with {}", output.status)
+        } else {
+            stderr
+        })
+    }
+}
+
+#[cfg(target_os = "macos")]
 fn open_terminal_for_g610_start(after_start: Option<&str>) -> Result<(), String> {
     let start_script = home_bin("codex-g610-server-start");
     if !start_script.is_file() {
@@ -95,31 +123,30 @@ fn open_terminal_for_g610_start(after_start: Option<&str>) -> Result<(), String>
     command.push_str(
         "; echo; echo 'G610 server command finished. You can close this Terminal window.'",
     );
+    open_terminal_command(&command, "sudo password")
+}
 
-    let script = format!(
-        r#"tell application "Terminal"
-    activate
-    do script "{}"
-end tell"#,
-        escape_applescript_string(&command)
-    );
-
-    let output = std::process::Command::new("osascript")
-        .arg("-e")
-        .arg(script)
-        .output()
-        .map_err(|e| format!("Failed to open Terminal for sudo password: {e}"))?;
-
-    if output.status.success() {
-        Ok(())
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        Err(if stderr.is_empty() {
-            format!("osascript exited with {}", output.status)
-        } else {
-            stderr
-        })
+#[cfg(target_os = "macos")]
+fn open_terminal_for_input_mapping_start() -> Result<(), String> {
+    let start_script = home_bin("codex-mac-input-start");
+    if !start_script.is_file() {
+        return Err(format!("Missing script: {}", start_script.display()));
     }
+
+    let command = format!(
+        "echo {}; echo {}; open {} || true; open {} || true; {}; echo; echo {}",
+        shell_quote(
+            "Input mapper needs macOS Accessibility and Input Monitoring permissions."
+        ),
+        shell_quote(
+            "Enable Terminal and Python if macOS blocks the event tap, then run this command again."
+        ),
+        shell_quote("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"),
+        shell_quote("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"),
+        shell_quote(&start_script.to_string_lossy()),
+        shell_quote("Input mapper command finished. You can close this Terminal window.")
+    );
+    open_terminal_command(&command, "input mapping permissions")
 }
 
 #[cfg(target_os = "macos")]
@@ -481,11 +508,19 @@ pub async fn set_mac_g610_pause_seconds(seconds: f64) -> Result<MacKeyboardServi
 pub async fn set_mac_input_mapping(enabled: bool) -> Result<MacKeyboardServicesStatus, String> {
     #[cfg(target_os = "macos")]
     {
-        run_script(if enabled {
-            "codex-mac-input-start"
+        if enabled {
+            if let Err(start_error) = run_script("codex-mac-input-start") {
+                open_terminal_for_input_mapping_start().map_err(|terminal_error| {
+                    format!(
+                        "{start_error}; also failed to open Terminal for input mapping \
+                         permissions: {terminal_error}"
+                    )
+                })?;
+                return Ok(status_impl());
+            }
         } else {
-            "codex-mac-input-stop"
-        })?;
+            run_script("codex-mac-input-stop")?;
+        }
         return Ok(status_impl());
     }
 
