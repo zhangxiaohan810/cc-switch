@@ -1198,6 +1198,8 @@ pub fn run() {
             commands::get_mac_keyboard_services_status,
             commands::set_mac_g610_listening,
             commands::set_mac_g610_blinking,
+            commands::set_mac_g610_default_brightness,
+            commands::set_mac_g610_blink_brightness,
             commands::set_mac_input_mapping,
             // Proxy server management
             commands::start_proxy_server,

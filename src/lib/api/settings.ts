@@ -247,6 +247,8 @@ export interface MacKeyboardServicesStatus {
   g610Listening: MacKeyboardServiceState;
   g610Blinking: MacKeyboardServiceState;
   inputMapping: MacKeyboardServiceState;
+  defaultBrightness: number;
+  blinkBrightness: number;
 }
 
 export const macKeyboardApi = {
@@ -260,6 +262,18 @@ export const macKeyboardApi = {
 
   async setG610Blinking(enabled: boolean): Promise<MacKeyboardServicesStatus> {
     return await invoke("set_mac_g610_blinking", { enabled });
+  },
+
+  async setDefaultBrightness(
+    brightness: number,
+  ): Promise<MacKeyboardServicesStatus> {
+    return await invoke("set_mac_g610_default_brightness", { brightness });
+  },
+
+  async setBlinkBrightness(
+    brightness: number,
+  ): Promise<MacKeyboardServicesStatus> {
+    return await invoke("set_mac_g610_blink_brightness", { brightness });
   },
 
   async setInputMapping(enabled: boolean): Promise<MacKeyboardServicesStatus> {

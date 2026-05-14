@@ -400,6 +400,10 @@
         "listeningDescription": "Start or stop the local blink controller on 127.0.0.1:19610",
         "blinking": "G610 Blinking",
         "blinkingDescription": "Control keyboard backlight blinking separately; enabling it starts the listening service when needed",
+        "defaultBrightness": "Default Keyboard Brightness",
+        "defaultBrightnessDescription": "Backlight brightness while not blinking; 0 means off",
+        "blinkBrightness": "Blink Brightness",
+        "blinkBrightnessDescription": "Backlight brightness for the lit phase of blinking",
         "inputMapping": "Input Mapping",
         "inputMappingDescription": "Control the separate Ctrl-to-Command keyboard mapping process"
       }

@@ -19,6 +19,8 @@ pub struct MacKeyboardServicesStatus {
     pub g610_listening: MacKeyboardServiceState,
     pub g610_blinking: MacKeyboardServiceState,
     pub input_mapping: MacKeyboardServiceState,
+    pub default_brightness: u8,
+    pub blink_brightness: u8,
 }
 
 #[cfg(target_os = "macos")]
@@ -92,6 +94,25 @@ fn get_g610_network_state() -> (bool, bool, Option<String>) {
 }
 
 #[cfg(target_os = "macos")]
+fn clamp_brightness(value: u8) -> u8 {
+    value.min(100)
+}
+
+#[cfg(target_os = "macos")]
+fn parse_brightness(detail: Option<&str>, key: &str, fallback: u8) -> u8 {
+    let Some(detail) = detail else {
+        return fallback;
+    };
+    let prefix = format!("{key}=");
+    detail
+        .split_whitespace()
+        .find_map(|part| part.strip_prefix(&prefix))
+        .and_then(|value| value.parse::<u8>().ok())
+        .map(clamp_brightness)
+        .unwrap_or(fallback)
+}
+
+#[cfg(target_os = "macos")]
 fn input_mapping_state() -> MacKeyboardServiceState {
     let installed = script_installed("codex-mac-input-status");
     if !installed {
@@ -130,6 +151,8 @@ fn status_impl() -> MacKeyboardServicesStatus {
     let status_installed = script_installed("codex-g610-server-status");
     let g610_installed = start_installed && stop_installed && status_installed;
     let (listening, blinking, g610_detail) = get_g610_network_state();
+    let default_brightness = parse_brightness(g610_detail.as_deref(), "default", 0);
+    let blink_brightness = parse_brightness(g610_detail.as_deref(), "blink", 100);
 
     MacKeyboardServicesStatus {
         supported: true,
@@ -146,6 +169,8 @@ fn status_impl() -> MacKeyboardServicesStatus {
             detail: g610_detail,
         },
         input_mapping: input_mapping_state(),
+        default_brightness,
+        blink_brightness,
     }
 }
 
@@ -166,6 +191,8 @@ fn status_impl() -> MacKeyboardServicesStatus {
         g610_listening: unsupported_state(),
         g610_blinking: unsupported_state(),
         input_mapping: unsupported_state(),
+        default_brightness: 0,
+        blink_brightness: 100,
     }
 }
 
@@ -208,6 +235,54 @@ pub async fn set_mac_g610_blinking(enabled: bool) -> Result<MacKeyboardServicesS
     #[cfg(not(target_os = "macos"))]
     {
         let _ = enabled;
+        Err("Mac keyboard controls are only available on macOS".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn set_mac_g610_default_brightness(
+    brightness: u8,
+) -> Result<MacKeyboardServicesStatus, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let (listening, _, _) = get_g610_network_state();
+        if !listening {
+            run_script("codex-g610-server-start")?;
+        }
+        send_g610_command(&format!(
+            "set default-brightness {}",
+            clamp_brightness(brightness)
+        ))?;
+        return Ok(status_impl());
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = brightness;
+        Err("Mac keyboard controls are only available on macOS".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn set_mac_g610_blink_brightness(
+    brightness: u8,
+) -> Result<MacKeyboardServicesStatus, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let (listening, _, _) = get_g610_network_state();
+        if !listening {
+            run_script("codex-g610-server-start")?;
+        }
+        send_g610_command(&format!(
+            "set blink-brightness {}",
+            clamp_brightness(brightness)
+        ))?;
+        return Ok(status_impl());
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = brightness;
         Err("Mac keyboard controls are only available on macOS".to_string())
     }
 }

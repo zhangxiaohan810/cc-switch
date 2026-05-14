@@ -16,12 +16,19 @@ import { Button } from "@/components/ui/button";
 import { ToggleRow } from "@/components/ui/toggle-row";
 
 type Target = "g610Listening" | "g610Blinking" | "inputMapping";
+type BrightnessTarget = "defaultBrightness" | "blinkBrightness";
 
 export function MacKeyboardControlPanel() {
   const { t } = useTranslation();
   const [status, setStatus] = useState<MacKeyboardServicesStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [busyTarget, setBusyTarget] = useState<Target | null>(null);
+  const [busyTarget, setBusyTarget] = useState<
+    Target | BrightnessTarget | null
+  >(null);
+  const [brightness, setBrightness] = useState({
+    defaultBrightness: 0,
+    blinkBrightness: 100,
+  });
 
   const loadStatus = useCallback(async () => {
     setIsLoading(true);
@@ -39,6 +46,14 @@ export function MacKeyboardControlPanel() {
     void loadStatus();
   }, [loadStatus]);
 
+  useEffect(() => {
+    if (!status) return;
+    setBrightness({
+      defaultBrightness: status.defaultBrightness ?? 0,
+      blinkBrightness: status.blinkBrightness ?? 100,
+    });
+  }, [status]);
+
   const setService = useCallback(
     async (target: Target, enabled: boolean) => {
       setBusyTarget(target);
@@ -53,6 +68,30 @@ export function MacKeyboardControlPanel() {
       } catch (error) {
         console.error(
           "[MacKeyboardControlPanel] Failed to toggle service",
+          error,
+        );
+        toast.error(String(error));
+        await loadStatus();
+      } finally {
+        setBusyTarget(null);
+      }
+    },
+    [loadStatus],
+  );
+
+  const setBrightnessValue = useCallback(
+    async (target: BrightnessTarget, value: number) => {
+      const normalized = Math.max(0, Math.min(100, Math.round(value)));
+      setBusyTarget(target);
+      try {
+        const next =
+          target === "defaultBrightness"
+            ? await macKeyboardApi.setDefaultBrightness(normalized)
+            : await macKeyboardApi.setBlinkBrightness(normalized);
+        setStatus(next);
+      } catch (error) {
+        console.error(
+          "[MacKeyboardControlPanel] Failed to set brightness",
           error,
         );
         toast.error(String(error));
@@ -162,6 +201,50 @@ export function MacKeyboardControlPanel() {
         onCheckedChange={(checked) => void setService("g610Blinking", checked)}
       />
 
+      <BrightnessSlider
+        label={t("settings.advanced.macKeyboard.defaultBrightness")}
+        description={t(
+          "settings.advanced.macKeyboard.defaultBrightnessDescription",
+        )}
+        value={brightness.defaultBrightness}
+        disabled={
+          busyTarget !== null ||
+          isLoading ||
+          !status.supported ||
+          !status.g610Listening.installed
+        }
+        onChange={(value) =>
+          setBrightness((current) => ({
+            ...current,
+            defaultBrightness: value,
+          }))
+        }
+        onCommit={(value) =>
+          void setBrightnessValue("defaultBrightness", value)
+        }
+      />
+
+      <BrightnessSlider
+        label={t("settings.advanced.macKeyboard.blinkBrightness")}
+        description={t(
+          "settings.advanced.macKeyboard.blinkBrightnessDescription",
+        )}
+        value={brightness.blinkBrightness}
+        disabled={
+          busyTarget !== null ||
+          isLoading ||
+          !status.supported ||
+          !status.g610Listening.installed
+        }
+        onChange={(value) =>
+          setBrightness((current) => ({
+            ...current,
+            blinkBrightness: value,
+          }))
+        }
+        onCommit={(value) => void setBrightnessValue("blinkBrightness", value)}
+      />
+
       <ToggleRow
         icon={<Keyboard className="h-4 w-4 text-emerald-500" />}
         title={t("settings.advanced.macKeyboard.inputMapping")}
@@ -174,6 +257,52 @@ export function MacKeyboardControlPanel() {
           !status.inputMapping.installed
         }
         onCheckedChange={(checked) => void setService("inputMapping", checked)}
+      />
+    </div>
+  );
+}
+
+interface BrightnessSliderProps {
+  label: string;
+  description: string;
+  value: number;
+  disabled: boolean;
+  onChange: (value: number) => void;
+  onCommit: (value: number) => void;
+}
+
+function BrightnessSlider({
+  label,
+  description,
+  value,
+  disabled,
+  onChange,
+  onCommit,
+}: BrightnessSliderProps) {
+  return (
+    <div className="rounded-xl border border-border bg-card/50 p-4 transition-colors hover:bg-muted/50">
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-sm font-medium leading-none">{label}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <span className="w-12 text-right text-sm tabular-nums text-muted-foreground">
+          {value}%
+        </span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={1}
+        value={value}
+        disabled={disabled}
+        aria-label={label}
+        className="mt-4 h-2 w-full cursor-pointer accent-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+        onChange={(event) => onChange(Number(event.currentTarget.value))}
+        onPointerUp={(event) => onCommit(Number(event.currentTarget.value))}
+        onKeyUp={(event) => onCommit(Number(event.currentTarget.value))}
+        onBlur={(event) => onCommit(Number(event.currentTarget.value))}
       />
     </div>
   );

@@ -400,6 +400,10 @@
         "listeningDescription": "127.0.0.1:19610 のローカル点滅コントローラーを開始または停止します",
         "blinking": "G610 点滅",
         "blinkingDescription": "キーボードバックライトの点滅を個別に制御します。オンにすると必要に応じてリスニングサービスも開始します",
+        "defaultBrightness": "デフォルトのキーボード輝度",
+        "defaultBrightnessDescription": "点滅していない状態のバックライト輝度。0 は消灯を意味します",
+        "blinkBrightness": "点滅輝度",
+        "blinkBrightnessDescription": "点滅時に点灯するフェーズのバックライト輝度",
         "inputMapping": "入力マッピング",
         "inputMappingDescription": "Ctrl を Command に変換する個別のキーボードマッピングプロセスを制御します"
       }

@@ -400,6 +400,10 @@
         "listeningDescription": "启动或停止本机 127.0.0.1:19610 的闪烁控制服务",
         "blinking": "G610 闪烁",
         "blinkingDescription": "单独控制键盘背光闪烁状态；开启时会自动确保监听服务已启动",
+        "defaultBrightness": "默认键盘亮度",
+        "defaultBrightnessDescription": "非闪烁状态下的键盘背光亮度，0 表示熄灭",
+        "blinkBrightness": "闪烁亮度",
+        "blinkBrightnessDescription": "闪烁亮起阶段的背光亮度",
         "inputMapping": "输入映射",
         "inputMappingDescription": "单独控制 Ctrl 到 Command 的键盘映射进程"
       }
