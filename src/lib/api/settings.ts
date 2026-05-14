@@ -235,6 +235,44 @@ export interface LogConfig {
   level: "error" | "warn" | "info" | "debug" | "trace";
 }
 
+export interface MacKeyboardServiceState {
+  installed: boolean;
+  running: boolean;
+  status: string;
+  detail?: string | null;
+}
+
+export interface MacKeyboardServicesStatus {
+  supported: boolean;
+  g610Listening: MacKeyboardServiceState;
+  g610Blinking: MacKeyboardServiceState;
+  inputMapping: MacKeyboardServiceState;
+}
+
+export const macKeyboardApi = {
+  async getStatus(): Promise<MacKeyboardServicesStatus> {
+    return await invoke("get_mac_keyboard_services_status");
+  },
+
+  async setG610Listening(
+    enabled: boolean,
+  ): Promise<MacKeyboardServicesStatus> {
+    return await invoke("set_mac_g610_listening", { enabled });
+  },
+
+  async setG610Blinking(
+    enabled: boolean,
+  ): Promise<MacKeyboardServicesStatus> {
+    return await invoke("set_mac_g610_blinking", { enabled });
+  },
+
+  async setInputMapping(
+    enabled: boolean,
+  ): Promise<MacKeyboardServicesStatus> {
+    return await invoke("set_mac_input_mapping", { enabled });
+  },
+};
+
 export interface BackupEntry {
   filename: string;
   sizeBytes: number;

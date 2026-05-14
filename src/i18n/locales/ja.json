@@ -388,6 +388,20 @@
           "debug": "SSE ストリームとリクエスト/レスポンスを含む詳細情報",
           "trace": "すべてのログ、最も詳細"
         }
+      },
+      "macKeyboard": {
+        "title": "Mac キーボード制御",
+        "description": "G610 のリスニング、点滅、入力マッピングを制御",
+        "statusTitle": "現在の状態",
+        "statusDetail": "リスニング：{{listening}} · 点滅：{{blinking}} · マッピング：{{mapping}}",
+        "unsupported": "Mac キーボード制御は macOS でのみ利用できます。",
+        "missingScripts": "補助スクリプトが見つかりません：{{scripts}}",
+        "listening": "G610 リスニングサービス",
+        "listeningDescription": "127.0.0.1:19610 のローカル点滅コントローラーを開始または停止します",
+        "blinking": "G610 点滅",
+        "blinkingDescription": "キーボードバックライトの点滅を個別に制御します。オンにすると必要に応じてリスニングサービスも開始します",
+        "inputMapping": "入力マッピング",
+        "inputMappingDescription": "Ctrl を Command に変換する個別のキーボードマッピングプロセスを制御します"
       }
     },
     "language": "言語",

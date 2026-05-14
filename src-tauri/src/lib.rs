@@ -1194,6 +1194,11 @@ pub fn run() {
             // Auto launch
             commands::set_auto_launch,
             commands::get_auto_launch_status,
+            // macOS local keyboard controls
+            commands::get_mac_keyboard_services_status,
+            commands::set_mac_g610_listening,
+            commands::set_mac_g610_blinking,
+            commands::set_mac_input_mapping,
             // Proxy server management
             commands::start_proxy_server,
             commands::stop_proxy_server,

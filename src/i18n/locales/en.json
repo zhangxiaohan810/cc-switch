@@ -388,6 +388,20 @@
           "debug": "Detailed info including SSE stream and request/response",
           "trace": "All logs, most verbose"
         }
+      },
+      "macKeyboard": {
+        "title": "Mac Keyboard Controls",
+        "description": "Control G610 listening, blinking, and input mapping",
+        "statusTitle": "Current status",
+        "statusDetail": "Listening: {{listening}} · Blinking: {{blinking}} · Mapping: {{mapping}}",
+        "unsupported": "Mac keyboard controls are only available on macOS.",
+        "missingScripts": "Missing helper scripts: {{scripts}}",
+        "listening": "G610 Listening Service",
+        "listeningDescription": "Start or stop the local blink controller on 127.0.0.1:19610",
+        "blinking": "G610 Blinking",
+        "blinkingDescription": "Control keyboard backlight blinking separately; enabling it starts the listening service when needed",
+        "inputMapping": "Input Mapping",
+        "inputMappingDescription": "Control the separate Ctrl-to-Command keyboard mapping process"
       }
     },
     "language": "Language",

@@ -9,6 +9,7 @@ import {
   ScrollText,
   HardDriveDownload,
   FlaskConical,
+  Keyboard,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -43,12 +44,14 @@ import { ProxyTabContent } from "@/components/settings/ProxyTabContent";
 import { ModelTestConfigPanel } from "@/components/usage/ModelTestConfigPanel";
 import { UsageDashboard } from "@/components/usage/UsageDashboard";
 import { LogConfigPanel } from "@/components/settings/LogConfigPanel";
+import { MacKeyboardControlPanel } from "@/components/settings/MacKeyboardControlPanel";
 import { AuthCenterPanel } from "@/components/settings/AuthCenterPanel";
 import { useInstalledSkills } from "@/hooks/useSkills";
 import { useSettings } from "@/hooks/useSettings";
 import { useImportExport } from "@/hooks/useImportExport";
 import { useTranslation } from "react-i18next";
 import type { SettingsFormState } from "@/hooks/useSettings";
+import { isMac } from "@/lib/platform";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -459,6 +462,38 @@ export function SettingsPage({
                           <LogConfigPanel />
                         </AccordionContent>
                       </AccordionItem>
+
+                      {isMac() && (
+                        <AccordionItem
+                          value="macKeyboard"
+                          className="rounded-xl glass-card overflow-hidden"
+                        >
+                          <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 data-[state=open]:bg-muted/50">
+                            <div className="flex items-center gap-3">
+                              <Keyboard className="h-5 w-5 text-emerald-500" />
+                              <div className="text-left">
+                                <h3 className="text-base font-semibold">
+                                  {t("settings.advanced.macKeyboard.title", {
+                                    defaultValue: "Mac 键盘控制",
+                                  })}
+                                </h3>
+                                <p className="text-sm text-muted-foreground font-normal">
+                                  {t(
+                                    "settings.advanced.macKeyboard.description",
+                                    {
+                                      defaultValue:
+                                        "控制 G610 闪烁监听、闪烁状态与输入映射",
+                                    },
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="px-6 pb-6 pt-4 border-t border-border/50">
+                            <MacKeyboardControlPanel />
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
                     </Accordion>
                   </motion.div>
                 ) : null}

@@ -388,6 +388,20 @@
           "debug": "详细信息，包含 SSE 流和请求/响应详情",
           "trace": "全部日志，最详细"
         }
+      },
+      "macKeyboard": {
+        "title": "Mac 键盘控制",
+        "description": "控制 G610 闪烁监听、闪烁状态与输入映射",
+        "statusTitle": "当前状态",
+        "statusDetail": "监听：{{listening}} · 闪烁：{{blinking}} · 映射：{{mapping}}",
+        "unsupported": "Mac 键盘控制仅支持 macOS。",
+        "missingScripts": "缺少辅助脚本：{{scripts}}",
+        "listening": "G610 监听服务",
+        "listeningDescription": "启动或停止本机 127.0.0.1:19610 的闪烁控制服务",
+        "blinking": "G610 闪烁",
+        "blinkingDescription": "单独控制键盘背光闪烁状态；开启时会自动确保监听服务已启动",
+        "inputMapping": "输入映射",
+        "inputMappingDescription": "单独控制 Ctrl 到 Command 的键盘映射进程"
       }
     },
     "language": "界面语言",
