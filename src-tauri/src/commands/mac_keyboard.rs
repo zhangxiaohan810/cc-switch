@@ -338,7 +338,10 @@ pub async fn set_mac_g610_frequency(
         if !listening {
             run_script("codex-g610-server-start")?;
         }
-        send_g610_command(&format!("set frequency {:.1}", clamp_frequency(frequency_hz)))?;
+        send_g610_command(&format!(
+            "set frequency {:.1}",
+            clamp_frequency(frequency_hz)
+        ))?;
         return Ok(status_impl());
     }
 
@@ -350,9 +353,7 @@ pub async fn set_mac_g610_frequency(
 }
 
 #[tauri::command]
-pub async fn set_mac_g610_burst_seconds(
-    seconds: f64,
-) -> Result<MacKeyboardServicesStatus, String> {
+pub async fn set_mac_g610_burst_seconds(seconds: f64) -> Result<MacKeyboardServicesStatus, String> {
     #[cfg(target_os = "macos")]
     {
         let (listening, _, _) = get_g610_network_state();
@@ -374,9 +375,7 @@ pub async fn set_mac_g610_burst_seconds(
 }
 
 #[tauri::command]
-pub async fn set_mac_g610_pause_seconds(
-    seconds: f64,
-) -> Result<MacKeyboardServicesStatus, String> {
+pub async fn set_mac_g610_pause_seconds(seconds: f64) -> Result<MacKeyboardServicesStatus, String> {
     #[cfg(target_os = "macos")]
     {
         let (listening, _, _) = get_g610_network_state();
