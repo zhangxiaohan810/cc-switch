@@ -60,15 +60,12 @@ export function useApiKeyState({
         initialConfig || "{}",
         key.trim(),
         {
-          // 最佳实践：仅在"新增模式"且"非官方类别"时补齐缺失字段
-          // - 新增模式：selectedPresetId !== null
-          // - 非官方类别：category !== undefined && category !== "official"
-          // - 官方类别：不创建字段（UI 也会禁用输入框）
-          // - 未传入 category：不创建字段（避免意外行为）
+          // 非官方供应商显示 API Key 输入框时，应确保输入能落入配置。
+          // 编辑旧配置时可能缺少 env key，这里也允许补齐。
           createIfMissing:
-            selectedPresetId !== null &&
             category !== undefined &&
-            category !== "official",
+            category !== "official" &&
+            category !== "cloud_provider",
           appType,
           apiKeyField,
         },

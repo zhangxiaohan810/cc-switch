@@ -242,11 +242,27 @@ export interface MacKeyboardServiceState {
   detail?: string | null;
 }
 
+export interface MacKeyboardDeviceStatus {
+  id: string;
+  label: string;
+  available: boolean;
+  detail?: string | null;
+}
+
 export interface MacKeyboardServicesStatus {
   supported: boolean;
   g610Listening: MacKeyboardServiceState;
   g610Blinking: MacKeyboardServiceState;
+  codexDesktopWatcher: MacKeyboardServiceState;
+  claudeRequestHooks: MacKeyboardServiceState;
   inputMapping: MacKeyboardServiceState;
+  g610WriteMode: string;
+  keyboardWriteMode: string;
+  g610LedCommand?: string | null;
+  g610LedAvailable: boolean;
+  appleKbdCommand?: string | null;
+  appleKbdAvailable: boolean;
+  keyboardDevices: MacKeyboardDeviceStatus[];
   defaultBrightness: number;
   blinkBrightness: number;
   frequencyHz: number;
@@ -265,6 +281,26 @@ export const macKeyboardApi = {
 
   async setG610Blinking(enabled: boolean): Promise<MacKeyboardServicesStatus> {
     return await invoke("set_mac_g610_blinking", { enabled });
+  },
+
+  async setKeyboardWriteMode(mode: string): Promise<MacKeyboardServicesStatus> {
+    return await invoke("set_mac_keyboard_write_mode", { mode });
+  },
+
+  async testBlink(): Promise<MacKeyboardServicesStatus> {
+    return await invoke("test_mac_keyboard_blink");
+  },
+
+  async setCodexDesktopWatcher(
+    enabled: boolean,
+  ): Promise<MacKeyboardServicesStatus> {
+    return await invoke("set_mac_codex_desktop_watcher", { enabled });
+  },
+
+  async setClaudeRequestHooks(
+    enabled: boolean,
+  ): Promise<MacKeyboardServicesStatus> {
+    return await invoke("set_mac_claude_request_hooks", { enabled });
   },
 
   async setDefaultBrightness(

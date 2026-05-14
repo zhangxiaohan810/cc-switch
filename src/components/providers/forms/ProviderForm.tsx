@@ -290,10 +290,15 @@ function ProviderFormFull({
     mode: "onSubmit",
   });
   const { isSubmitting } = form.formState;
+  const settingsConfigValue = form.watch("settingsConfig") ?? "";
 
   const handleSettingsConfigChange = useCallback(
     (config: string) => {
-      form.setValue("settingsConfig", config);
+      form.setValue("settingsConfig", config, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      });
     },
     [form],
   );
@@ -326,7 +331,7 @@ function ProviderFormFull({
     handleApiKeyChange,
     showApiKey: shouldShowApiKey,
   } = useApiKeyState({
-    initialConfig: form.getValues("settingsConfig"),
+    initialConfig: settingsConfigValue,
     onConfigChange: handleSettingsConfigChange,
     selectedPresetId,
     category,
@@ -337,7 +342,7 @@ function ProviderFormFull({
   const { baseUrl, handleClaudeBaseUrlChange } = useBaseUrlState({
     appType: appId,
     category,
-    settingsConfig: form.getValues("settingsConfig"),
+    settingsConfig: settingsConfigValue,
     codexConfig: "",
     onSettingsConfigChange: handleSettingsConfigChange,
     onCodexConfigChange: () => {},
@@ -350,7 +355,7 @@ function ProviderFormFull({
     defaultOpusModel,
     handleModelChange,
   } = useModelState({
-    settingsConfig: form.getValues("settingsConfig"),
+    settingsConfig: settingsConfigValue,
     onConfigChange: handleSettingsConfigChange,
   });
 
@@ -370,21 +375,20 @@ function ProviderFormFull({
 
       // Swap the env key name in settingsConfig
       try {
-        const raw = form.getValues("settingsConfig");
+        const raw = settingsConfigValue;
         const config = JSON.parse(raw || "{}");
         if (config?.env && prev in config.env) {
           const value = config.env[prev];
           delete config.env[prev];
           config.env[field] = value;
           const updated = JSON.stringify(config, null, 2);
-          form.setValue("settingsConfig", updated);
           handleSettingsConfigChange(updated);
         }
       } catch {
         // ignore parse errors during editing
       }
     },
-    [localApiKeyField, form, handleSettingsConfigChange],
+    [localApiKeyField, settingsConfigValue, handleSettingsConfigChange],
   );
 
   // Copilot OAuth 认证状态（仅 Claude 应用需要）
@@ -506,7 +510,7 @@ function ProviderFormFull({
   } = useTemplateValues({
     selectedPresetId: appId === "claude" ? selectedPresetId : null,
     presetEntries: appId === "claude" ? presetEntries : [],
-    settingsConfig: form.getValues("settingsConfig"),
+    settingsConfig: settingsConfigValue,
     onConfigChange: handleSettingsConfigChange,
   });
 
@@ -519,7 +523,7 @@ function ProviderFormFull({
     isExtracting: isClaudeExtracting,
     handleExtract: handleClaudeExtract,
   } = useCommonConfigSnippet({
-    settingsConfig: form.getValues("settingsConfig"),
+    settingsConfig: settingsConfigValue,
     onConfigChange: handleSettingsConfigChange,
     initialData: appId === "claude" ? initialData : undefined,
     initialEnabled:
@@ -572,17 +576,17 @@ function ProviderFormFull({
       value: string,
     ) => {
       try {
-        const config = JSON.parse(form.getValues("settingsConfig") || "{}") as {
+        const config = JSON.parse(settingsConfigValue || "{}") as {
           env?: Record<string, unknown>;
         };
         if (!config.env || typeof config.env !== "object") {
           config.env = {};
         }
         config.env[key] = value;
-        form.setValue("settingsConfig", JSON.stringify(config, null, 2));
+        handleSettingsConfigChange(JSON.stringify(config, null, 2));
       } catch {}
     },
-    [form],
+    [settingsConfigValue, handleSettingsConfigChange],
   );
 
   const handleGeminiApiKeyChange = useCallback(
@@ -654,7 +658,7 @@ function ProviderFormFull({
     initialData,
     appId,
     providerId,
-    onSettingsConfigChange: (config) => form.setValue("settingsConfig", config),
+    onSettingsConfigChange: handleSettingsConfigChange,
     getSettingsConfig: () => form.getValues("settingsConfig"),
   });
 
@@ -675,7 +679,7 @@ function ProviderFormFull({
     initialData,
     appId,
     providerId,
-    onSettingsConfigChange: (config) => form.setValue("settingsConfig", config),
+    onSettingsConfigChange: handleSettingsConfigChange,
     getSettingsConfig: () => form.getValues("settingsConfig"),
   });
   const {
@@ -687,7 +691,7 @@ function ProviderFormFull({
     initialData,
     appId,
     providerId,
-    onSettingsConfigChange: (config) => form.setValue("settingsConfig", config),
+    onSettingsConfigChange: handleSettingsConfigChange,
     getSettingsConfig: () => form.getValues("settingsConfig"),
   });
   const {
@@ -1762,8 +1766,8 @@ function ProviderFormFull({
               providerId={providerId}
               shouldShowApiKey={
                 (category !== "cloud_provider" ||
-                  hasApiKeyField(form.getValues("settingsConfig"), "claude")) &&
-                shouldShowApiKey(form.getValues("settingsConfig"), isEditMode)
+                  hasApiKeyField(settingsConfigValue, "claude")) &&
+                shouldShowApiKey(settingsConfigValue, isEditMode)
               }
               apiKey={apiKey}
               onApiKeyChange={handleApiKeyChange}
@@ -1861,7 +1865,7 @@ function ProviderFormFull({
             <GeminiFormFields
               providerId={providerId}
               shouldShowApiKey={shouldShowApiKey(
-                form.getValues("settingsConfig"),
+                settingsConfigValue,
                 isEditMode,
               )}
               apiKey={geminiApiKey}
@@ -2038,8 +2042,8 @@ function ProviderFormFull({
                   {t("provider.configJson")}
                 </Label>
                 <JsonEditor
-                  value={form.getValues("settingsConfig")}
-                  onChange={(config) => form.setValue("settingsConfig", config)}
+                  value={settingsConfigValue}
+                  onChange={handleSettingsConfigChange}
                   placeholder={`{
   "npm": "@ai-sdk/openai-compatible",
   "options": {
@@ -2062,8 +2066,8 @@ function ProviderFormFull({
                   {t("provider.configJson")}
                 </Label>
                 <JsonEditor
-                  value={form.getValues("settingsConfig")}
-                  onChange={(config) => form.setValue("settingsConfig", config)}
+                  value={settingsConfigValue}
+                  onChange={handleSettingsConfigChange}
                   placeholder={
                     appId === "hermes"
                       ? `{
@@ -2096,8 +2100,8 @@ function ProviderFormFull({
           ) : (
             <>
               <CommonConfigEditor
-                value={form.getValues("settingsConfig")}
-                onChange={(value) => form.setValue("settingsConfig", value)}
+                value={settingsConfigValue}
+                onChange={handleSettingsConfigChange}
                 useCommonConfig={useCommonConfig}
                 onCommonConfigToggle={handleCommonConfigToggle}
                 commonConfigSnippet={commonConfigSnippet}

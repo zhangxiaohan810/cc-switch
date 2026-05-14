@@ -815,6 +815,7 @@ pub fn run() {
                 app_state.db.clone(),
                 app.handle().clone(),
             );
+            commands::restore_codex_desktop_watcher_on_launch();
             // 将同一个实例注入到全局状态，避免重复创建导致的不一致
             app.manage(app_state);
 
@@ -1198,6 +1199,10 @@ pub fn run() {
             commands::get_mac_keyboard_services_status,
             commands::set_mac_g610_listening,
             commands::set_mac_g610_blinking,
+            commands::set_mac_keyboard_write_mode,
+            commands::test_mac_keyboard_blink,
+            commands::set_mac_codex_desktop_watcher,
+            commands::set_mac_claude_request_hooks,
             commands::set_mac_g610_default_brightness,
             commands::set_mac_g610_blink_brightness,
             commands::set_mac_g610_frequency,
@@ -1491,6 +1496,8 @@ pub fn run() {
 /// 确保 Claude Code/Codex/Gemini 的配置不会处于损坏状态。
 /// 使用 stop_with_restore_keep_state 保留 settings 表中的代理状态，下次启动时自动恢复。
 pub async fn cleanup_before_exit(app_handle: &tauri::AppHandle) {
+    commands::stop_codex_desktop_watcher_on_exit();
+
     if let Some(state) = app_handle.try_state::<store::AppState>() {
         let proxy_service = &state.proxy_service;
 

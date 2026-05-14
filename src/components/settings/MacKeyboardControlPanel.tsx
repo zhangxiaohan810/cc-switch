@@ -2,21 +2,38 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
+  BellRing,
   Keyboard,
   Loader2,
+  MonitorCheck,
   RadioTower,
   RefreshCw,
   Sparkles,
+  TestTube2,
 } from "lucide-react";
 import {
   macKeyboardApi,
   type MacKeyboardServicesStatus,
 } from "@/lib/api/settings";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ToggleRow } from "@/components/ui/toggle-row";
 
-type Target = "g610Listening" | "g610Blinking" | "inputMapping";
+type Target =
+  | "g610Listening"
+  | "g610Blinking"
+  | "codexDesktopWatcher"
+  | "claudeRequestHooks"
+  | "inputMapping"
+  | "keyboardWriteMode"
+  | "testBlink";
 type SliderTarget =
   | "defaultBrightness"
   | "blinkBrightness"
@@ -94,7 +111,11 @@ export function MacKeyboardControlPanel() {
             ? await macKeyboardApi.setG610Listening(enabled)
             : target === "g610Blinking"
               ? await macKeyboardApi.setG610Blinking(enabled)
-              : await macKeyboardApi.setInputMapping(enabled);
+              : target === "codexDesktopWatcher"
+                ? await macKeyboardApi.setCodexDesktopWatcher(enabled)
+                : target === "claudeRequestHooks"
+                  ? await macKeyboardApi.setClaudeRequestHooks(enabled)
+                  : await macKeyboardApi.setInputMapping(enabled);
         setStatus(next);
       } catch (error) {
         console.error(
@@ -166,6 +187,38 @@ export function MacKeyboardControlPanel() {
     [lastDefaultBrightness, setSliderValue, sliderValues.defaultBrightness],
   );
 
+  const setKeyboardWriteMode = useCallback(
+    async (mode: string) => {
+      setBusyTarget("keyboardWriteMode");
+      try {
+        setStatus(await macKeyboardApi.setKeyboardWriteMode(mode));
+      } catch (error) {
+        console.error(
+          "[MacKeyboardControlPanel] Failed to set write mode",
+          error,
+        );
+        toast.error(String(error));
+        await loadStatus();
+      } finally {
+        setBusyTarget(null);
+      }
+    },
+    [loadStatus],
+  );
+
+  const testBlink = useCallback(async () => {
+    setBusyTarget("testBlink");
+    try {
+      setStatus(await macKeyboardApi.testBlink());
+    } catch (error) {
+      console.error("[MacKeyboardControlPanel] Failed to test blink", error);
+      toast.error(String(error));
+      await loadStatus();
+    } finally {
+      setBusyTarget(null);
+    }
+  }, [loadStatus]);
+
   const unavailableMessage = useMemo(() => {
     if (!status) return null;
     if (!status.supported) {
@@ -207,9 +260,10 @@ export function MacKeyboardControlPanel() {
           <p className="break-words">
             {t("settings.advanced.macKeyboard.statusDetail", {
               defaultValue:
-                "Listening: {{listening}} · Blinking: {{blinking}} · Mapping: {{mapping}}",
+                "Listening: {{listening}} · Blinking: {{blinking}} · Claude: {{claude}} · Mapping: {{mapping}}",
               listening: status.g610Listening.status,
               blinking: status.g610Blinking.status,
+              claude: status.claudeRequestHooks.status,
               mapping: status.inputMapping.status,
             })}
           </p>
@@ -218,6 +272,15 @@ export function MacKeyboardControlPanel() {
               {unavailableMessage}
             </p>
           ) : null}
+          <p className="mt-1 break-words">
+            {t("settings.advanced.macKeyboard.deviceStatus", {
+              defaultValue:
+                "Device mode: {{mode}} · G610: {{g610}} · Apple: {{apple}}",
+              mode: status.keyboardWriteMode || status.g610WriteMode,
+              g610: status.g610LedAvailable ? "available" : "unavailable",
+              apple: status.appleKbdAvailable ? "available" : "unavailable",
+            })}
+          </p>
         </div>
         <Button
           type="button"
@@ -234,6 +297,93 @@ export function MacKeyboardControlPanel() {
             <RefreshCw className="h-4 w-4" />
           )}
         </Button>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card/50 p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0 space-y-1">
+            <p className="text-sm font-medium leading-none">
+              {t("settings.advanced.macKeyboard.writeMode", {
+                defaultValue: "Controllable keyboard",
+              })}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {t("settings.advanced.macKeyboard.writeModeDescription", {
+                defaultValue:
+                  "Choose the brightness backend used by Claude hooks and the Codex Desktop watcher.",
+              })}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Select
+              value={status.keyboardWriteMode || "auto"}
+              onValueChange={(value) => void setKeyboardWriteMode(value)}
+              disabled={busyTarget !== null || isLoading || !status.supported}
+            >
+              <SelectTrigger className="w-[220px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">
+                  {t("settings.advanced.macKeyboard.writeModeAuto", {
+                    defaultValue: "Auto detect",
+                  })}
+                </SelectItem>
+                <SelectItem
+                  value="g610-led"
+                  disabled={!status.g610LedAvailable}
+                >
+                  {t("settings.advanced.macKeyboard.writeModeG610", {
+                    defaultValue: "Logitech G610",
+                  })}
+                </SelectItem>
+                <SelectItem
+                  value="apple-kbd"
+                  disabled={!status.appleKbdAvailable}
+                >
+                  {t("settings.advanced.macKeyboard.writeModeApple", {
+                    defaultValue: "Apple keyboard backlight",
+                  })}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void testBlink()}
+              disabled={
+                busyTarget !== null ||
+                isLoading ||
+                !status.supported ||
+                !status.g610Listening.installed
+              }
+            >
+              {busyTarget === "testBlink" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <TestTube2 className="mr-2 h-4 w-4" />
+              )}
+              {t("settings.advanced.macKeyboard.testBlink", {
+                defaultValue: "Test blink",
+              })}
+            </Button>
+          </div>
+        </div>
+        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+          {status.keyboardDevices.map((device) => (
+            <p key={device.id} className="break-words">
+              {device.label}:{" "}
+              {device.available
+                ? t("settings.advanced.macKeyboard.available", {
+                    defaultValue: "available",
+                  })
+                : t("settings.advanced.macKeyboard.unavailable", {
+                    defaultValue: "unavailable",
+                  })}
+              {device.detail ? ` · ${device.detail}` : ""}
+            </p>
+          ))}
+        </div>
       </div>
 
       <ToggleRow
@@ -262,6 +412,44 @@ export function MacKeyboardControlPanel() {
           !status.g610Blinking.installed
         }
         onCheckedChange={(checked) => void setService("g610Blinking", checked)}
+      />
+
+      <ToggleRow
+        icon={<MonitorCheck className="h-4 w-4 text-violet-500" />}
+        title={t("settings.advanced.macKeyboard.codexDesktopWatcher")}
+        description={t(
+          "settings.advanced.macKeyboard.codexDesktopWatcherDescription",
+        )}
+        checked={status.codexDesktopWatcher.running}
+        disabled={
+          busyTarget !== null ||
+          isLoading ||
+          !status.supported ||
+          !status.g610Listening.installed ||
+          !status.codexDesktopWatcher.installed
+        }
+        onCheckedChange={(checked) =>
+          void setService("codexDesktopWatcher", checked)
+        }
+      />
+
+      <ToggleRow
+        icon={<BellRing className="h-4 w-4 text-rose-500" />}
+        title={t("settings.advanced.macKeyboard.claudeRequestHooks")}
+        description={t(
+          "settings.advanced.macKeyboard.claudeRequestHooksDescription",
+        )}
+        checked={status.claudeRequestHooks.running}
+        disabled={
+          busyTarget !== null ||
+          isLoading ||
+          !status.supported ||
+          !status.g610Listening.installed ||
+          !status.claudeRequestHooks.installed
+        }
+        onCheckedChange={(checked) =>
+          void setService("claudeRequestHooks", checked)
+        }
       />
 
       <RangeSlider
