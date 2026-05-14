@@ -13,6 +13,7 @@ import {
   type MacKeyboardServicesStatus,
 } from "@/lib/api/settings";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { ToggleRow } from "@/components/ui/toggle-row";
 
 type Target = "g610Listening" | "g610Blinking" | "inputMapping";
@@ -23,6 +24,8 @@ type SliderTarget =
   | "burstSeconds"
   | "pauseSeconds";
 
+const FALLBACK_DEFAULT_BRIGHTNESS = 50;
+
 export function MacKeyboardControlPanel() {
   const { t } = useTranslation();
   const [status, setStatus] = useState<MacKeyboardServicesStatus | null>(null);
@@ -30,8 +33,13 @@ export function MacKeyboardControlPanel() {
   const [busyTarget, setBusyTarget] = useState<Target | SliderTarget | null>(
     null,
   );
+  const [isDefaultBrightnessEnabled, setIsDefaultBrightnessEnabled] =
+    useState(false);
+  const [lastDefaultBrightness, setLastDefaultBrightness] = useState(
+    FALLBACK_DEFAULT_BRIGHTNESS,
+  );
   const [sliderValues, setSliderValues] = useState({
-    defaultBrightness: 0,
+    defaultBrightness: FALLBACK_DEFAULT_BRIGHTNESS,
     blinkBrightness: 100,
     frequencyHz: 3,
     burstSeconds: 5,
@@ -56,12 +64,24 @@ export function MacKeyboardControlPanel() {
 
   useEffect(() => {
     if (!status) return;
-    setSliderValues({
-      defaultBrightness: status.defaultBrightness ?? 0,
-      blinkBrightness: status.blinkBrightness ?? 100,
-      frequencyHz: status.frequencyHz ?? 3,
-      burstSeconds: status.burstSeconds ?? 5,
-      pauseSeconds: status.pauseSeconds ?? 15,
+    const nextDefaultBrightness = status.defaultBrightness ?? 0;
+    const defaultBrightnessEnabled = nextDefaultBrightness > 0;
+    setIsDefaultBrightnessEnabled(defaultBrightnessEnabled);
+    if (defaultBrightnessEnabled) {
+      setLastDefaultBrightness(nextDefaultBrightness);
+    }
+    setSliderValues((current) => {
+      return {
+        defaultBrightness: defaultBrightnessEnabled
+          ? nextDefaultBrightness
+          : current.defaultBrightness > 0
+            ? current.defaultBrightness
+            : FALLBACK_DEFAULT_BRIGHTNESS,
+        blinkBrightness: status.blinkBrightness ?? 100,
+        frequencyHz: status.frequencyHz ?? 3,
+        burstSeconds: status.burstSeconds ?? 5,
+        pauseSeconds: status.pauseSeconds ?? 15,
+      };
     });
   }, [status]);
 
@@ -121,6 +141,29 @@ export function MacKeyboardControlPanel() {
       }
     },
     [loadStatus],
+  );
+
+  const setDefaultBrightnessEnabled = useCallback(
+    async (enabled: boolean) => {
+      const nextBrightness = enabled
+        ? Math.max(
+            1,
+            Math.round(sliderValues.defaultBrightness) ||
+              lastDefaultBrightness ||
+              FALLBACK_DEFAULT_BRIGHTNESS,
+          )
+        : 0;
+      setIsDefaultBrightnessEnabled(enabled);
+      setSliderValues((current) => ({
+        ...current,
+        defaultBrightness: enabled ? nextBrightness : current.defaultBrightness,
+      }));
+      if (enabled) {
+        setLastDefaultBrightness(nextBrightness);
+      }
+      await setSliderValue("defaultBrightness", nextBrightness);
+    },
+    [lastDefaultBrightness, setSliderValue, sliderValues.defaultBrightness],
   );
 
   const unavailableMessage = useMemo(() => {
@@ -226,6 +269,8 @@ export function MacKeyboardControlPanel() {
         description={t(
           "settings.advanced.macKeyboard.defaultBrightnessDescription",
         )}
+        enabled={isDefaultBrightnessEnabled}
+        onEnabledChange={(enabled) => void setDefaultBrightnessEnabled(enabled)}
         value={sliderValues.defaultBrightness}
         min={0}
         max={100}
@@ -237,12 +282,15 @@ export function MacKeyboardControlPanel() {
           !status.supported ||
           !status.g610Listening.installed
         }
-        onChange={(value) =>
+        onChange={(value) => {
+          if (value > 0) {
+            setLastDefaultBrightness(value);
+          }
           setSliderValues((current) => ({
             ...current,
             defaultBrightness: value,
-          }))
-        }
+          }));
+        }}
         onCommit={(value) => void setSliderValue("defaultBrightness", value)}
       />
 
@@ -366,6 +414,8 @@ interface RangeSliderProps {
   step: number;
   suffix: string;
   disabled: boolean;
+  enabled?: boolean;
+  onEnabledChange?: (enabled: boolean) => void;
   onChange: (value: number) => void;
   onCommit: (value: number) => void;
 }
@@ -379,10 +429,13 @@ function RangeSlider({
   step,
   suffix,
   disabled,
+  enabled,
+  onEnabledChange,
   onChange,
   onCommit,
 }: RangeSliderProps) {
   const displayValue = step < 1 ? value.toFixed(1) : String(Math.round(value));
+  const sliderDisabled = disabled || enabled === false;
 
   return (
     <div className="rounded-xl border border-border bg-card/50 p-4 transition-colors hover:bg-muted/50">
@@ -391,10 +444,20 @@ function RangeSlider({
           <p className="text-sm font-medium leading-none">{label}</p>
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
-        <span className="w-16 text-right text-sm tabular-nums text-muted-foreground">
-          {displayValue}
-          {suffix}
-        </span>
+        <div className="flex shrink-0 items-center gap-3">
+          <span className="w-16 text-right text-sm tabular-nums text-muted-foreground">
+            {displayValue}
+            {suffix}
+          </span>
+          {typeof enabled === "boolean" && onEnabledChange ? (
+            <Switch
+              checked={enabled}
+              onCheckedChange={onEnabledChange}
+              disabled={disabled}
+              aria-label={label}
+            />
+          ) : null}
+        </div>
       </div>
       <input
         type="range"
@@ -402,7 +465,7 @@ function RangeSlider({
         max={max}
         step={step}
         value={value}
-        disabled={disabled}
+        disabled={sliderDisabled}
         aria-label={label}
         className="mt-4 h-2 w-full cursor-pointer accent-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
         onChange={(event) => onChange(Number(event.currentTarget.value))}
