@@ -1,6 +1,7 @@
-use serde::Serialize;
-
+#[cfg(target_os = "macos")]
 const G610_PORT: u16 = 19610;
+
+use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

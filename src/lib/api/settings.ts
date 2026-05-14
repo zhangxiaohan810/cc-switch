@@ -254,21 +254,15 @@ export const macKeyboardApi = {
     return await invoke("get_mac_keyboard_services_status");
   },
 
-  async setG610Listening(
-    enabled: boolean,
-  ): Promise<MacKeyboardServicesStatus> {
+  async setG610Listening(enabled: boolean): Promise<MacKeyboardServicesStatus> {
     return await invoke("set_mac_g610_listening", { enabled });
   },
 
-  async setG610Blinking(
-    enabled: boolean,
-  ): Promise<MacKeyboardServicesStatus> {
+  async setG610Blinking(enabled: boolean): Promise<MacKeyboardServicesStatus> {
     return await invoke("set_mac_g610_blinking", { enabled });
   },
 
-  async setInputMapping(
-    enabled: boolean,
-  ): Promise<MacKeyboardServicesStatus> {
+  async setInputMapping(enabled: boolean): Promise<MacKeyboardServicesStatus> {
     return await invoke("set_mac_input_mapping", { enabled });
   },
 };

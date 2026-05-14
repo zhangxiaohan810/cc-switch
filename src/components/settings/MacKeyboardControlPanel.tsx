@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Keyboard, Loader2, RadioTower, RefreshCw, Sparkles } from "lucide-react";
+import {
+  Keyboard,
+  Loader2,
+  RadioTower,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
 import {
   macKeyboardApi,
   type MacKeyboardServicesStatus,
@@ -45,7 +51,10 @@ export function MacKeyboardControlPanel() {
               : await macKeyboardApi.setInputMapping(enabled);
         setStatus(next);
       } catch (error) {
-        console.error("[MacKeyboardControlPanel] Failed to toggle service", error);
+        console.error(
+          "[MacKeyboardControlPanel] Failed to toggle service",
+          error,
+        );
         toast.error(String(error));
         await loadStatus();
       } finally {
@@ -136,9 +145,7 @@ export function MacKeyboardControlPanel() {
           !status.supported ||
           !status.g610Listening.installed
         }
-        onCheckedChange={(checked) =>
-          void setService("g610Listening", checked)
-        }
+        onCheckedChange={(checked) => void setService("g610Listening", checked)}
       />
 
       <ToggleRow
