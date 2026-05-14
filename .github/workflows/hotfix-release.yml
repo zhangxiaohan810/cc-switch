@@ -1,0 +1,285 @@
+name: Hotfix Release
+
+on:
+  push:
+    tags:
+      - 'v*-deepseek.*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hotfix-release-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (${{ matrix.os }} ${{ matrix.arch || 'x64' }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+          - os: ubuntu-22.04
+          - os: ubuntu-22.04-arm
+            arch: arm64
+          - os: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add macOS targets
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Install Linux system deps
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            pkg-config \
+            curl \
+            wget \
+            file \
+            patchelf \
+            libssl-dev \
+            rpm \
+            flatpak \
+            flatpak-builder \
+            elfutils \
+            xdg-utils \
+            libgtk-3-dev \
+            librsvg2-dev \
+            libayatana-appindicator3-dev
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev \
+            || sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.0-dev
+          sudo apt-get install -y --no-install-recommends libsoup-3.0-dev \
+            || sudo apt-get install -y --no-install-recommends libsoup2.4-dev
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.12.3
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-store
+        shell: bash
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure unsigned hotfix build
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = 'src-tauri/tauri.conf.json';
+          const config = JSON.parse(fs.readFileSync(path, 'utf8'));
+          config.bundle.createUpdaterArtifacts = false;
+          if (config.plugins && config.plugins.updater) {
+            config.plugins.updater.endpoints = [
+              `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/latest/download/latest.json`
+            ];
+          }
+          fs.writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
+          NODE
+
+      - name: Build Tauri App (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        timeout-minutes: 60
+        run: pnpm tauri build --target universal-apple-darwin --bundles app --ci
+
+      - name: Build Tauri App (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        timeout-minutes: 60
+        run: pnpm tauri build --ci
+
+      - name: Build Tauri App (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        timeout-minutes: 60
+        run: pnpm tauri build --bundles appimage,deb,rpm --ci
+
+      - name: Prepare macOS Assets
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p release-assets
+          VERSION="${GITHUB_REF_NAME}"
+
+          APP_PATH=""
+          for path in \
+            "src-tauri/target/universal-apple-darwin/release/bundle/macos" \
+            "src-tauri/target/aarch64-apple-darwin/release/bundle/macos" \
+            "src-tauri/target/x86_64-apple-darwin/release/bundle/macos" \
+            "src-tauri/target/release/bundle/macos"; do
+            if [ -d "$path" ]; then
+              APP_PATH=$(find "$path" -maxdepth 1 -name "*.app" -type d | head -1 || true)
+              [ -n "$APP_PATH" ] && break
+            fi
+          done
+
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app found" >&2
+            exit 1
+          fi
+
+          ZIP_NAME="CC-Switch-${VERSION}-macOS.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "release-assets/$ZIP_NAME"
+
+          DMG_NAME="CC-Switch-${VERSION}-macOS.dmg"
+          DMG_STAGE_DIR="$RUNNER_TEMP/dmg-stage"
+          rm -rf "$DMG_STAGE_DIR"
+          mkdir -p "$DMG_STAGE_DIR"
+          ditto "$APP_PATH" "$DMG_STAGE_DIR/CC Switch.app"
+          ln -s /Applications "$DMG_STAGE_DIR/Applications"
+          hdiutil create -volname "CC Switch" -srcfolder "$DMG_STAGE_DIR" -ov -format UDZO "release-assets/$DMG_NAME"
+          rm -rf "$DMG_STAGE_DIR"
+
+      - name: Prepare Windows Assets
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          $VERSION = $env:GITHUB_REF_NAME
+
+          $msi = Get-ChildItem -Path 'src-tauri/target/release/bundle/msi' -Recurse -Include *.msi -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($null -eq $msi) {
+            $msi = Get-ChildItem -Path 'src-tauri/target/release/bundle' -Recurse -Include *.msi -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
+          if ($null -ne $msi) {
+            $dest = "CC-Switch-$VERSION-Windows.msi"
+            Copy-Item $msi.FullName (Join-Path release-assets $dest)
+            Write-Host "Installer copied: $dest"
+          } else {
+            throw 'No Windows MSI installer found'
+          }
+
+          $exeCandidates = @(
+            'src-tauri/target/release/cc-switch.exe',
+            'src-tauri/target/x86_64-pc-windows-msvc/release/cc-switch.exe'
+          )
+          $exePath = $exeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if ($null -ne $exePath) {
+            $portableDir = 'release-assets/CC-Switch-Portable'
+            New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+            Copy-Item $exePath $portableDir
+            @('# CC Switch portable build marker', 'portable=true') | Set-Content -Path (Join-Path $portableDir 'portable.ini') -Encoding UTF8
+            Compress-Archive -Path "$portableDir/*" -DestinationPath "release-assets/CC-Switch-$VERSION-Windows-Portable.zip" -Force
+            Remove-Item -Recurse -Force $portableDir
+          }
+
+      - name: Prepare Linux Assets
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p release-assets
+          VERSION="${GITHUB_REF_NAME}"
+          ARCH="${{ matrix.arch || 'x86_64' }}"
+
+          APPIMAGE=$(find src-tauri/target/release/bundle -name "*.AppImage" | head -1 || true)
+          if [ -n "$APPIMAGE" ]; then
+            cp "$APPIMAGE" "release-assets/CC-Switch-${VERSION}-Linux-${ARCH}.AppImage"
+          else
+            echo "No AppImage found" >&2
+            exit 1
+          fi
+
+          DEB=$(find src-tauri/target/release/bundle -name "*.deb" | head -1 || true)
+          if [ -n "$DEB" ]; then
+            cp "$DEB" "release-assets/CC-Switch-${VERSION}-Linux-${ARCH}.deb"
+          fi
+
+          RPM=$(find src-tauri/target/release/bundle -name "*.rpm" | head -1 || true)
+          if [ -n "$RPM" ]; then
+            cp "$RPM" "release-assets/CC-Switch-${VERSION}-Linux-${ARCH}.rpm"
+          fi
+
+      - name: List prepared assets
+        shell: bash
+        run: ls -la release-assets
+
+      - name: Upload release artifacts to workflow
+        uses: actions/upload-artifact@v7
+        with:
+          name: hotfix-release-assets-${{ runner.os }}-${{ matrix.arch || runner.arch }}
+          path: release-assets/*
+          if-no-files-found: error
+
+      - name: List generated bundles on failure
+        if: failure()
+        shell: bash
+        run: find src-tauri/target -maxdepth 5 -type f 2>/dev/null || true
+
+  publish:
+    name: publish release
+    runs-on: ubuntu-22.04
+    needs: build
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download built release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: hotfix-release-assets-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: List downloaded release artifacts
+        shell: bash
+        run: ls -la release-assets
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: CC Switch ${{ github.ref_name }}
+          prerelease: true
+          body: |
+            ## CC Switch ${{ github.ref_name }}
+
+            This is an unsigned community hotfix build from `zhangxiaohan810/cc-switch`.
+
+            Changes included:
+            - Add Mac G610 keyboard service, blinking, and input mapping controls.
+            - Add brightness, blink frequency, single blink duration, and wait interval sliders.
+            - Open Terminal for G610 sudo startup when the GUI cannot collect a password.
+
+            Downloads:
+            - macOS: `CC-Switch-${{ github.ref_name }}-macOS.dmg` or `CC-Switch-${{ github.ref_name }}-macOS.zip`
+            - Windows: `CC-Switch-${{ github.ref_name }}-Windows.msi` or portable zip
+            - Linux x86_64: AppImage / deb / rpm
+            - Linux arm64: AppImage / deb / rpm
+
+            Note: macOS and Windows artifacts are not signed with the upstream author's certificates.
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
